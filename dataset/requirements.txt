@@ -1,0 +1,10 @@
+pandas>=2.2
+numpy>=2.1
+pillow>=10.4
+opencv-python-headless>=4.10
+img2pdf>=0.5
+tqdm>=4.66
+faker>=30.0
+python-dateutil>=2.9
+rapidfuzz>=3.10
+psycopg[binary]>=3.2

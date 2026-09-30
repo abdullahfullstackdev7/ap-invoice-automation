@@ -1,0 +1,45 @@
+# Environments
+.env
+.env.*
+!.env.example
+*.local
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+
+# Data (large / generated, see dataset/README.md for rebuild steps)
+dataset/raw/
+dataset/demo/invoices/
+dataset/demo/extraction_cache.jsonl
+data/files/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# This file must never leave the working tree
+git_verify.md
