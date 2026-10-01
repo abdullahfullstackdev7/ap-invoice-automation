@@ -8,6 +8,7 @@ from app.models.invoicing import Document, ExtractionRun, Invoice, InvoiceLine
 from app.models.llm_usage import LLMUsage
 from app.models.masterdata import Item, Vendor
 from app.models.matching import MatchLineResult, MatchResult
+from app.models.notifications import Notification
 from app.models.payments import Payment, PaymentBatch
 from app.models.policies import ApprovalPolicy, TolerancePolicy
 from app.models.procurement import GoodsReceipt, GRLine, POLine, PurchaseOrder
@@ -29,6 +30,7 @@ __all__ = [
     "LLMUsage",
     "MatchLineResult",
     "MatchResult",
+    "Notification",
     "POLine",
     "Payment",
     "PaymentBatch",

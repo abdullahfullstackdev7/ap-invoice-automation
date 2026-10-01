@@ -1,0 +1,31 @@
+{
+  "cases_run": 4,
+  "overall": {
+    "precision": 1.0,
+    "recall": 1.0
+  },
+  "by_reason_code": {
+    "PO_CLOSED": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "true_positive": 1,
+      "false_positive": 0,
+      "false_negative": 0
+    },
+    "PRICE_VARIANCE": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "true_positive": 1,
+      "false_positive": 0,
+      "false_negative": 0
+    },
+    "QTY_NOT_RECEIVED": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "true_positive": 1,
+      "false_positive": 0,
+      "false_negative": 0
+    }
+  },
+  "note": "Smoke test only: dataset/processed/anomaly_labels.csv does not exist in this environment (see dataset/README.md), so this exercises run_match() directly against one synthetic case per labeled reason code (PO_CLOSED, PRICE_VARIANCE, QTY_NOT_RECEIVED) plus one clean case, rather than the real FATURA-derived evaluation set. Re-run against anomaly_labels.csv once it exists."
+}

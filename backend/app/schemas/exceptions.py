@@ -21,3 +21,4 @@ class ExceptionRead(ORMModel):
 class ExceptionActionRequest(ORMModel):
     action: str
     comment: str | None = None
+    assignee_id: uuid.UUID | None = None

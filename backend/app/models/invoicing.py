@@ -11,7 +11,6 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
-    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -66,7 +65,15 @@ class Invoice(UUIDPKMixin, Base):
     lines: Mapped[list["InvoiceLine"]] = relationship(back_populates="invoice")
 
     __table_args__ = (
-        UniqueConstraint("vendor_id", "invoice_no", name="uq_invoices_vendor_invoice_no"),
+        # Deliberately a plain index, not a UNIQUE constraint: Plan.md
+        # section 7's duplicate-invoice handling (DUPLICATE_EXACT
+        # exception, BLOCKED outcome) requires a duplicate invoice to be
+        # persisted as its own row, visible in the UI and referencing the
+        # original, not rejected by the database before the match engine
+        # ever sees it. Exact (vendor_id, invoice_no) duplicates are a
+        # real business event the app must capture, not an integrity
+        # error; app.matching.duplicate enforces this logically instead.
+        Index("ix_invoices_vendor_invoice_no", "vendor_id", "invoice_no"),
     )
 
 

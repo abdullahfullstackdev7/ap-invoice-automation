@@ -1,4 +1,4 @@
-.PHONY: up down logs migrate load-data seed verify-audit ocr-bakeoff evaluate-extraction test demo lint typecheck backend-install frontend-install dataset
+.PHONY: up down logs migrate load-data seed verify-audit ocr-bakeoff evaluate-extraction evaluate-matching test demo lint typecheck backend-install frontend-install dataset
 
 up:
 	docker compose up -d --build
@@ -33,6 +33,9 @@ ocr-bakeoff:
 
 evaluate-extraction:
 	docker compose exec api uv run python -m scripts.evaluate_extraction
+
+evaluate-matching:
+	docker compose exec api uv run python -m scripts.evaluate_matching
 
 dataset:
 	cd dataset && bash download_fatura.sh

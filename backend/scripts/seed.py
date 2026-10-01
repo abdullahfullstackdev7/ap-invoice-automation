@@ -17,6 +17,8 @@ from app.core.security import hash_password
 from app.db.session import async_session_factory
 from app.models.enums import UserRole
 from app.models.identity import User
+from app.models.policies import ApprovalPolicy
+from app.services.approval_routing import CLEAN_MATCH_ABOVE_LIMIT
 
 DEMO_PASSWORD_DEFAULT = "ChangeMe123Demo!"
 
@@ -65,6 +67,36 @@ SEED_USERS = [
 ]
 
 
+@dataclass(frozen=True)
+class SeedApprovalPolicy:
+    min_amount: Decimal
+    max_amount: Decimal | None
+    reason_code: str | None
+    required_role: UserRole
+    steps: list[str]
+
+
+# Plan.md section 8's default approval matrix. The <=5,000 clean-match
+# "Auto" row needs no policy row: route_invoice checks AUTO_APPROVE_LIMIT
+# directly. CLEAN_MATCH_ABOVE_LIMIT is a synthetic reason_code (not a real
+# exception reason) that disambiguates "clean match, over the limit" from
+# the generic exception amount tiers below it; see
+# app/services/approval_routing.py.
+SEED_APPROVAL_POLICIES = [
+    SeedApprovalPolicy(Decimal("0"), None, CLEAN_MATCH_ABOVE_LIMIT, UserRole.approver, []),
+    SeedApprovalPolicy(Decimal("0"), Decimal("2500"), None, UserRole.ap_clerk, []),
+    SeedApprovalPolicy(Decimal("2500.01"), Decimal("25000"), None, UserRole.approver, []),
+    SeedApprovalPolicy(Decimal("25000.01"), None, None, UserRole.finance_manager, []),
+    SeedApprovalPolicy(
+        Decimal("0"),
+        None,
+        "DUPLICATE_SUSPECTED",
+        UserRole.approver,
+        ["approver", "finance_manager"],
+    ),
+]
+
+
 async def seed() -> None:
     async with async_session_factory() as session:
         for spec in SEED_USERS:
@@ -84,6 +116,22 @@ async def seed() -> None:
             )
             session.add(user)
             print(f"Created {spec.email} ({spec.role.value})")
+
+        existing_policies = await session.execute(select(ApprovalPolicy))
+        if existing_policies.scalars().first() is None:
+            for policy_spec in SEED_APPROVAL_POLICIES:
+                session.add(
+                    ApprovalPolicy(
+                        min_amount=policy_spec.min_amount,
+                        max_amount=policy_spec.max_amount,
+                        reason_code=policy_spec.reason_code,
+                        required_role=policy_spec.required_role,
+                        steps=policy_spec.steps,
+                    )
+                )
+            print(f"Created {len(SEED_APPROVAL_POLICIES)} approval policies")
+        else:
+            print("Skipping approval policies: already seeded")
 
         await session.commit()
 

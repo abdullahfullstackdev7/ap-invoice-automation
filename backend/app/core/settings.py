@@ -26,6 +26,7 @@ class Settings(BaseSettings):
                 "(HS256 requires a strong key)."
             )
         return value
+
     access_token_minutes: int = 15
     refresh_token_days: int = 7
     cookie_secure: bool = False
@@ -56,6 +57,7 @@ class Settings(BaseSettings):
     ocr_engine: Literal["rapidocr", "tesseract"] = "rapidocr"
     demo_mode: bool = True
     auto_approve_limit: int = 5000
+    early_pay_discount_hurdle_pct: float = 10.0
 
     @property
     def cors_origins_list(self) -> list[str]:

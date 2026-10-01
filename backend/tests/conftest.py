@@ -55,6 +55,11 @@ TRUNCATE_TABLES = [
     "goods_receipts",
     "gr_lines",
     "exceptions",
+    "approvals",
+    "approval_policies",
+    "payments",
+    "payment_batches",
+    "notifications",
 ]
 
 
@@ -127,6 +132,16 @@ async def deferred_jobs(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, objec
         tasks.resolve_invoice_entities,
         "defer_async",
         _make_fake_defer_async("resolve_invoice_entities"),
+    )
+    monkeypatch.setattr(tasks.match_invoice, "defer_async", _make_fake_defer_async("match_invoice"))
+    monkeypatch.setattr(tasks.route_invoice, "defer_async", _make_fake_defer_async("route_invoice"))
+    monkeypatch.setattr(
+        tasks.schedule_payment, "defer_async", _make_fake_defer_async("schedule_payment")
+    )
+    monkeypatch.setattr(
+        tasks.settle_payment_batch,
+        "defer_async",
+        _make_fake_defer_async("settle_payment_batch"),
     )
     return calls
 

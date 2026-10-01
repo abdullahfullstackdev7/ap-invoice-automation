@@ -10,9 +10,11 @@ Working product name (placeholder, fictional): **Veridian Payables**.
 Build status: Phase 0 (foundation), Phase 1 (dataset pipeline), Phase 2
 (database, migrations and loading), Phase 3 (authentication and
 authorization), Phase 4 (document intake and OCR), Phase 5 (extraction,
-validation and the LLM router) and Phase 6 (embeddings and entity
-resolution) complete. See `Plan.md` for the full phase-by-phase plan and
-`dataset/README.md` for dataset rebuild status.
+validation and the LLM router), Phase 6 (embeddings and entity
+resolution), Phase 7 (3-way match and rules engine) and Phase 8
+(exceptions, approval routing and payment release) complete. See
+`Plan.md` for the full phase-by-phase plan and `dataset/README.md` for
+dataset rebuild status.
 
 ## Authentication and authorization (Phase 3)
 
@@ -237,6 +239,112 @@ test), and line mapping (SKU priority, global-vs-greedy assignment,
 unmatched lines on both sides). The full pipeline (upload through OCR,
 extraction and resolution) is proven end to end against a seeded
 vendor/PO/PO-line fixture and the real dockerized Postgres.
+
+## 3-way match and rules engine (Phase 7)
+
+`match_invoice`, chained automatically after entity resolution, runs the
+duplicate check and five ordered rules over an immutable `MatchContext`
+snapshot: duplicate (exact `vendor_id`+normalized `invoice_no`, then a
+near-duplicate check combining `rapidfuzz` invoice-number similarity,
+amount-within-0.5%, date-within-7-days and line embedding similarity),
+header (PO exists and open, vendor and currency match, invoice date on
+or after PO date), quantity (3-way: invoiced-to-date against received
+minus previously-invoiced, missing goods receipt flagged as
+`QTY_NOT_RECEIVED`), price (within `max(1%, $1)` passes, up to 5% is a
+warning, above 5% or a >10% six-month vendor price drift is an
+exception), totals and tax (recomputed from matched lines within 0.02,
+tax rate checked against vendor history), and payment terms (due date
+and early-pay discount eligibility). Each rule is a pure function
+(`app/matching/rules/*.py`) tested in isolation; `app/matching/engine.py`
+only orchestrates and decides the outcome - `AUTO_APPROVED` with no
+exceptions, `BLOCKED` on an exact duplicate or any of
+`PO_NOT_FOUND`/`PO_CLOSED`/`VENDOR_MISMATCH`, `EXCEPTION` otherwise - and
+`app/matching/service.py` is the only layer that touches the database,
+assembling the `MatchContext` from `Invoice`/`PurchaseOrder`/`POLine`/
+`GRLine` rows. Tolerance policy lookup follows vendor > category >
+global precedence (`app/matching/policy.py`). The match is safe to
+re-run (a late-arriving PO or goods receipt can trigger a clean
+re-match): an existing open exception with the same reason code is
+never duplicated.
+
+A hard `UNIQUE(vendor_id, invoice_no)` database constraint (added in
+Phase 2) turned out to be incompatible with this phase's own duplicate
+handling - a true duplicate invoice has to be persisted as its own row,
+flagged `DUPLICATE_EXACT` and `BLOCKED`, not rejected by the database
+before the match engine ever sees it. That constraint was replaced with
+a plain non-unique index; `app/matching/duplicate.py` now owns exact
+and near-duplicate detection at the application layer, which is also
+where Plan.md's near-duplicate case lives in the first place.
+
+Verified: 42 new tests (20 rule unit tests, 8 engine outcome tests, 14
+Hypothesis property-based tests confirming Decimal-only arithmetic and
+no false positive at or within each tolerance boundary, as required by
+Plan.md section 7) plus a dedicated pipeline integration test
+(`tests/test_matching_pipeline.py`) proving a clean invoice against a
+received PO auto-approves, a >5% price variance raises a `PRICE_VARIANCE`
+exception, and a missing goods receipt raises `QTY_NOT_RECEIVED` without
+duplicating it on re-run - 170 backend tests green overall. `ruff`,
+`mypy` and `bandit` are clean. `scripts/evaluate_matching.py` targets
+the recall >= 0.95 / precision >= 0.90 acceptance criterion against
+`dataset/processed/anomaly_labels.csv`; that file does not exist in this
+environment (see `dataset/README.md`), so the script smoke-tests
+`run_match()` directly against one synthetic case per labeled reason
+code instead of claiming real recall/precision numbers (see
+`docs/evaluation.md`).
+
+## Exceptions, approval routing and payment release (Phase 8)
+
+`route_invoice`, chained automatically after a non-blocked match, applies
+Plan.md section 8's default approval matrix: a clean match at or under
+`AUTO_APPROVE_LIMIT` (default $5,000) skips human approval entirely and
+goes straight to payment scheduling; everything else - an exception, or
+a clean match over the limit - waits for the role
+`app/services/approval_routing.py` computes, with a notification sent to
+every active user in that role (the in-app bell menu,
+`app/models/notifications.py`). The matrix itself lives in the
+`approval_policies` table (seeded by `scripts/seed.py`) with amount and
+reason-code lookup and a two-step `approver` then `finance_manager`
+override for `DUPLICATE_SUSPECTED`, falling back to a hardcoded copy of
+the same matrix if no row matches, so routing degrades safely rather
+than silently approving.
+
+The exceptions queue (`app/api/exceptions.py`) supports every action
+Plan.md lists - approve with a mandatory reason, reject, request a
+credit note, request a corrected invoice, hold, reassign, add a comment,
+and re-match (re-runs `match_invoice`, which is idempotent by design
+since Phase 7) - plus SLA timers set at exception-creation time (high 4h,
+medium next business day, low 3 days) and a default assignee role by
+reason code (header-level problems to `approver`, line-level variances to
+`ap_clerk`). Approval itself (`app/services/approvals.py`) is shared
+between the exceptions queue's "approve" action and the dedicated
+`/invoices/{id}/approvals/decision` endpoint, and enforces segregation of
+duties on every decision: the invoice's uploader can never approve it,
+regardless of role or amount fit, using the same `forbid_same_actor`
+helper Phase 3 built for refresh-token reuse detection.
+
+Payment scheduling (`app/services/payment_scheduling.py`) pays on the due
+date unless an early-pay discount clears an annualized-return hurdle
+(default 10%, `EARLY_PAY_DISCOUNT_HURDLE_PCT`) using the standard AP
+formula `[discount% / (100% - discount%)] * [365 / (net_days -
+discount_days)]`. Payment batches (`app/api/payments.py`) bundle
+scheduled payments, generate a simulated bank-file CSV
+(`app/services/payment_batch.py`, no real bank connection), and enforce
+the same SoD rule on release: the batch's creator can never release it.
+Settlement (`settle_payment_batch`) runs as a follow-up job so `released`
+and `settled` are distinct, auditable moments.
+
+Verified: the four acceptance scenarios Plan.md section 8 names end to
+end against the real dockerized Postgres - a clean invoice auto-approves
+and is paid through a full batch create/release/settle cycle; a price
+drift lands in the approver's queue and is approved; an exact-duplicate
+invoice is blocked with no approval routing or payment ever created; and
+an uploader attempting to approve their own invoice is rejected with 403
+even though their role and approval limit would otherwise qualify - plus
+unit tests for every approval-routing tier, every exception action, SLA
+timers (including the weekend-skipping medium tier), default assignment
+by reason code, and the early-pay discount formula's edge cases (no
+discount terms, a thin discount below the hurdle, a discount date on or
+after the due date). `ruff`, `mypy` and `bandit` are clean.
 
 ## Repository structure
 

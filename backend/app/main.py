@@ -7,10 +7,14 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
+from app.api.approvals import router as approvals_router
 from app.api.audit import router as audit_router
 from app.api.auth import router as auth_router
+from app.api.exceptions import router as exceptions_router
 from app.api.health import router as health_router
 from app.api.invoices import router as invoices_router
+from app.api.notifications import router as notifications_router
+from app.api.payments import router as payments_router
 from app.api.users import router as users_router
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging, get_logger
@@ -67,6 +71,10 @@ def create_app() -> FastAPI:
     app.include_router(users_router, prefix="/api/v1")
     app.include_router(audit_router, prefix="/api/v1")
     app.include_router(invoices_router, prefix="/api/v1")
+    app.include_router(exceptions_router, prefix="/api/v1")
+    app.include_router(approvals_router, prefix="/api/v1")
+    app.include_router(payments_router, prefix="/api/v1")
+    app.include_router(notifications_router, prefix="/api/v1")
 
     logger.info("app_created", app_env=settings.app_env)
     return app

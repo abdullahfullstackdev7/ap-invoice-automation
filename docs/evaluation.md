@@ -1,4 +1,4 @@
-# Evaluation
+﻿# Evaluation
 
 ## OCR engine bake-off (Phase 4)
 
@@ -96,3 +96,17 @@ cd ../backend && uv run python -m scripts.evaluate_extraction
 Set `GROQ_API_KEY`/`GEMINI_API_KEY` first to measure the LLM call rate
 and token usage columns for real; this overwrites the "Extraction
 accuracy" section of this file in place.
+
+## 3-way match rule engine accuracy
+
+Cases run: 4
+Overall precision: 1.000 (target: >= 0.90, Plan.md section 7)
+Overall recall: 1.000 (target: >= 0.95)
+
+| Reason code | Precision | Recall | TP | FP | FN |
+|---|---|---|---|---|---|
+| PO_CLOSED | 1.000 | 1.000 | 1 | 0 | 0 |
+| PRICE_VARIANCE | 1.000 | 1.000 | 1 | 0 | 0 |
+| QTY_NOT_RECEIVED | 1.000 | 1.000 | 1 | 0 | 0 |
+
+Smoke test only: dataset/processed/anomaly_labels.csv does not exist in this environment (see dataset/README.md), so this exercises run_match() directly against one synthetic case per labeled reason code (PO_CLOSED, PRICE_VARIANCE, QTY_NOT_RECEIVED) plus one clean case, rather than the real FATURA-derived evaluation set. Re-run against anomaly_labels.csv once it exists.
