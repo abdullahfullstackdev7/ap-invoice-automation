@@ -1,7 +1,8 @@
-.PHONY: up down logs seed test demo lint typecheck backend-install frontend-install dataset
+.PHONY: up down logs migrate load-data seed verify-audit ocr-bakeoff evaluate-extraction test demo lint typecheck backend-install frontend-install dataset
 
 up:
 	docker compose up -d --build
+	$(MAKE) migrate
 
 down:
 	docker compose down
@@ -15,8 +16,23 @@ backend-install:
 frontend-install:
 	cd frontend && npm install
 
+migrate:
+	docker compose exec api uv run alembic upgrade head
+
+load-data:
+	docker compose exec api uv run python /dataset/scripts/load_to_db.py
+
 seed:
-	docker compose exec api python -m scripts.seed
+	docker compose exec api uv run python -m scripts.seed
+
+verify-audit:
+	docker compose exec api uv run python -m scripts.verify_audit
+
+ocr-bakeoff:
+	docker compose exec api uv run python -m scripts.ocr_bakeoff
+
+evaluate-extraction:
+	docker compose exec api uv run python -m scripts.evaluate_extraction
 
 dataset:
 	cd dataset && bash download_fatura.sh
@@ -39,5 +55,5 @@ lint:
 	cd frontend && npm run lint
 
 typecheck:
-	cd backend && uv run mypy app
+	cd backend && uv run mypy app tests scripts
 	cd frontend && npm run typecheck

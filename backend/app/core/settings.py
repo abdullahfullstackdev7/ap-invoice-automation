@@ -1,7 +1,10 @@
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+MIN_JWT_SECRET_LENGTH = 32
 
 
 class Settings(BaseSettings):
@@ -9,8 +12,20 @@ class Settings(BaseSettings):
 
     app_env: Literal["development", "test", "production"] = "development"
     database_url: str = "postgresql+psycopg://app_rw:change_me@localhost:5432/apdb"
+    database_admin_url: str = "postgresql+psycopg://apdb_admin:change_me_admin@localhost:5432/apdb"
+    database_ro_url: str = "postgresql+psycopg://app_ro:change_me_ro@localhost:5432/apdb"
 
-    jwt_secret: str = "change_me"
+    jwt_secret: str = "change_me_to_a_random_at_least_32_character_secret"
+
+    @field_validator("jwt_secret")
+    @classmethod
+    def _jwt_secret_min_length(cls, value: str) -> str:
+        if len(value) < MIN_JWT_SECRET_LENGTH:
+            raise ValueError(
+                f"JWT_SECRET must be at least {MIN_JWT_SECRET_LENGTH} characters "
+                "(HS256 requires a strong key)."
+            )
+        return value
     access_token_minutes: int = 15
     refresh_token_days: int = 7
     cookie_secure: bool = False

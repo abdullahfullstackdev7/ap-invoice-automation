@@ -32,15 +32,40 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    services:
+      db:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: apdb
+          POSTGRES_USER: apdb_admin
+          POSTGRES_PASSWORD: change_me_admin
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U apdb_admin -d apdb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_ADMIN_URL: postgresql+psycopg://apdb_admin:change_me_admin@localhost:5433/apdb
+      DATABASE_URL: postgresql+psycopg://app_rw:change_me@localhost:5433/apdb
+      DB_APP_RW_PASSWORD: change_me
+      DB_APP_RO_PASSWORD: change_me_ro
+      TEST_DATABASE_URL: postgresql+asyncpg://app_rw:change_me@localhost:5433/apdb
+      TEST_DATABASE_ADMIN_URL: postgresql+asyncpg://apdb_admin:change_me_admin@localhost:5433/apdb
+      JWT_SECRET: ci_only_test_secret_at_least_32_characters_long
     steps:
       - uses: actions/checkout@v4
+      - name: Install system OCR/image dependencies
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr libgl1 libmagic1
       - uses: astral-sh/setup-uv@v3
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - run: uv sync --extra dev
       - run: uv run ruff check .
-      - run: uv run mypy app
+      - run: uv run mypy app tests scripts
+      - run: uv run alembic upgrade head
       - run: uv run pytest
       - run: uv run bandit -r app -q
       - run: uv run pip-audit --strict || true

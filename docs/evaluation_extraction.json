@@ -1,0 +1,58 @@
+{
+  "invoices_evaluated": 10,
+  "overall": {
+    "invoice_no": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "total": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  "by_template": {
+    "template_0": {
+      "invoice_no": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "total": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      }
+    },
+    "template_1": {
+      "invoice_no": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "total": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      }
+    }
+  },
+  "by_split": {
+    "unknown": {
+      "invoice_no": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "total": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      }
+    }
+  },
+  "llm_call_rate": 0.0,
+  "avg_tokens_per_invoice": 0.0,
+  "note": "LLM call rate and tokens are 0 in this run: no GROQ/GEMINI keys were configured, so every invoice resolved via rules or fell to needs_review without an LLM call."
+}

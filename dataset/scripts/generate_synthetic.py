@@ -81,21 +81,31 @@ def build_vendors(truth: pd.DataFrame, rng: random.Random, faker: Faker) -> pd.D
     vendor_names = (
         truth["vendor"].apply(lambda v: v.get("name") if isinstance(v, dict) else None).dropna()
     )
-    unique_names = sorted({normalize_name(n) for n in vendor_names if n})
+    # Keep the first-seen original casing per normalized name, rather than
+    # lowercasing and re-titlecasing, since str.title() mangles acronyms
+    # like "IT" -> "It" and "LLC" -> "Llc".
+    display_name_by_normalized: dict[str, str] = {}
+    for raw_name in vendor_names:
+        if not raw_name:
+            continue
+        normalized = normalize_name(raw_name)
+        display_name_by_normalized.setdefault(normalized, str(raw_name).strip())
+    unique_names = sorted(display_name_by_normalized.keys())
 
     if not unique_names:
-        unique_names = [faker.company() for _ in range(180)]
+        unique_names = [normalize_name(faker.company()) for _ in range(180)]
+        display_name_by_normalized = {n: n.title() for n in unique_names}
 
     rows = []
-    for idx, name in enumerate(unique_names):
+    for idx, normalized in enumerate(unique_names):
         terms = rng.choice(PAYMENT_TERMS_OPTIONS)
         has_discount = rng.random() < DISCOUNT_SHARE
         rows.append(
             {
                 "vendor_id": f"VEND-{idx + 1:05d}",
                 "code": f"V{idx + 1:05d}",
-                "name": name.title(),
-                "name_normalized": name,
+                "name": display_name_by_normalized[normalized],
+                "name_normalized": normalized,
                 "tax_id": f"TAX-{faker.unique.random_number(digits=9, fix_len=True)}",
                 "address": faker.address().replace("\n", ", "),
                 "email": faker.company_email(),

@@ -4,14 +4,14 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DB: apdb
-      POSTGRES_USER: app_rw
-      POSTGRES_PASSWORD: change_me
+      POSTGRES_USER: apdb_admin
+      POSTGRES_PASSWORD: change_me_admin
     ports:
       - "5433:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app_rw -d apdb"]
+      test: ["CMD-SHELL", "pg_isready -U apdb_admin -d apdb"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -24,6 +24,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://app_rw:change_me@db:5432/apdb
+      DATABASE_ADMIN_URL: postgresql+psycopg://apdb_admin:change_me_admin@db:5432/apdb
     depends_on:
       db:
         condition: service_healthy
@@ -31,6 +32,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+      - ./dataset:/dataset
       - files_data:/data/files
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
@@ -42,6 +44,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://app_rw:change_me@db:5432/apdb
+      DATABASE_ADMIN_URL: postgresql+psycopg://apdb_admin:change_me_admin@db:5432/apdb
     depends_on:
       db:
         condition: service_healthy

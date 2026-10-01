@@ -145,3 +145,37 @@ for this section and for `docs/evaluation.md`.
 - [ ] `select_demo_set.py`, `generate_synthetic.py`, `augment_scans.py` run
 - [ ] `validate_dataset.py` exits 0 against real data
 - [ ] 20-invoice manual spot check against PO and GRN (Phase 1 acceptance)
+- [ ] `load_to_db.py` run against real data (`make load-data`, Phase 2 acceptance)
+
+## Loading into the database (Phase 2)
+
+`scripts/load_to_db.py` bulk loads `synthetic/vendors.csv`,
+`items_catalog.csv`, `purchase_orders.csv`, `po_lines.csv`,
+`goods_receipts.csv` and `gr_lines.csv` into the schema created by the
+backend's Alembic migrations, using `COPY`. The CSVs key rows with
+generator-assigned string ids (`VEND-00001`, `PO-000001`, ...), so the
+script assigns a UUID per row as it loads and rewrites foreign keys
+through an in-memory id map before each `COPY`, rather than round
+tripping to the database per lookup. It then generates vendor and item
+embeddings with `fastembed` in batches of 64.
+
+Run it with `make load-data` (inside the `api` container, using the
+restricted `app_rw` role, consistent with Plan.md section 5 and 7) or
+directly: `DATABASE_URL=postgresql+psycopg://app_rw:<password>@localhost:5433/apdb
+python dataset/scripts/load_to_db.py` from the backend's virtual
+environment (it needs `psycopg` and `fastembed`, both backend
+dependencies).
+
+`payments_history.csv`, `anomaly_labels.csv` and `users_seed.csv` are not
+loaded by this script: they reference invoice ids that only exist once
+real invoices are uploaded and processed (Phase 4 onward), or are used by
+the evaluation harness and demo seeding directly, not COPY'd as-is.
+
+**Verified against the same small synthetic fixture** noted above: 20
+vendors, 400 items, 72 purchase orders, 132 PO lines, 63 goods receipts,
+126 GR lines loaded in under 3 seconds (cached embedding model); a
+vendor-name fuzzing bug was found and fixed in this process (`.title()`
+was mangling acronyms like "IT" and "LLC"; vendor display names are now
+kept in their original casing). The fixture and the rows it loaded were
+removed afterward; this section will be updated with real counts once a
+full FATURA-based run completes.
