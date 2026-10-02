@@ -33,11 +33,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
   if (!response.ok) {
     const problem = await response.json().catch(() => null)
-    throw new ApiError(
-      response.status,
-      problem?.title ?? response.statusText,
-      problem?.detail,
-    )
+    throw new ApiError(response.status, problem?.title ?? response.statusText, problem?.detail)
   }
 
   if (response.status === 204) {

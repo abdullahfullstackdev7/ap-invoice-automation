@@ -51,6 +51,7 @@ async def _invoice_with_exception(
         severity=ExceptionSeverity.medium,
         status=ExceptionStatus.open,
         details_json={"note": "test"},
+        opened_at=datetime.now(UTC),
     )
     db_session.add(exception)
     await db_session.commit()

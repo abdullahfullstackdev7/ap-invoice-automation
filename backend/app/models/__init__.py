@@ -2,6 +2,7 @@ from app.models.analytics import AnalyticsDaily
 from app.models.approvals import Approval
 from app.models.audit import AuditLog
 from app.models.base import Base
+from app.models.contact import ContactSubmission
 from app.models.exceptions import ExceptionRecord
 from app.models.identity import RefreshToken, User
 from app.models.invoicing import Document, ExtractionRun, Invoice, InvoiceLine
@@ -19,6 +20,7 @@ __all__ = [
     "ApprovalPolicy",
     "AuditLog",
     "Base",
+    "ContactSubmission",
     "Document",
     "ExceptionRecord",
     "ExtractionRun",

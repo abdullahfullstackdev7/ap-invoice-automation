@@ -63,6 +63,7 @@ async def _seed_exception(db_session: AsyncSession) -> ExceptionRecord:
         reason_code="PRICE_VARIANCE",
         severity=ExceptionSeverity.medium,
         status=ExceptionStatus.open,
+        opened_at=datetime.now(UTC),
     )
     db_session.add(exception)
     await db_session.commit()

@@ -11,10 +11,11 @@ Build status: Phase 0 (foundation), Phase 1 (dataset pipeline), Phase 2
 (database, migrations and loading), Phase 3 (authentication and
 authorization), Phase 4 (document intake and OCR), Phase 5 (extraction,
 validation and the LLM router), Phase 6 (embeddings and entity
-resolution), Phase 7 (3-way match and rules engine) and Phase 8
-(exceptions, approval routing and payment release) complete. See
-`Plan.md` for the full phase-by-phase plan and `dataset/README.md` for
-dataset rebuild status.
+resolution), Phase 7 (3-way match and rules engine), Phase 8
+(exceptions, approval routing and payment release), Phase 9 (analytics
+backend) and Phase 10 (frontend foundation and public website) complete.
+See `Plan.md` for the full phase-by-phase plan and `dataset/README.md`
+for dataset rebuild status.
 
 ## Authentication and authorization (Phase 3)
 
@@ -345,6 +346,114 @@ timers (including the weekend-skipping medium tier), default assignment
 by reason code, and the early-pay discount formula's edge cases (no
 discount terms, a thin discount below the hurdle, a discount date on or
 after the due date). `ruff`, `mypy` and `bandit` are clean.
+
+## Analytics backend (Phase 9)
+
+Seventeen read endpoints under `/api/v1/analytics/*` (admin,
+finance_manager and auditor only, per the RBAC table), all scoped by
+`date_from`/`date_to` (default: trailing 30 days) and optionally by
+`vendor_id`/`category`: `kpis` (with previous-period comparison),
+`volume-value-trend`, `spend-by-vendor`, `spend-by-category`,
+`exceptions-trend`, `exceptions-by-reason`, `stp-rate`, `cycle-time`
+(distribution and trend), `aging`, `cashflow-forecast`, `savings`
+(duplicates blocked, price drift prevented, over-receipt prevented,
+discounts captured/missed), `vendor-scorecards`, `workflow-funnel`,
+`exception-heatmap`, `llm-usage` and `extraction-accuracy`. Every
+response carries a content-hash `ETag`; a matching `If-None-Match` gets a
+`304` with no body. List-shaped endpoints take `?format=csv` for a CSV
+export and `limit`/`offset` pagination where the result is a ranked
+table. KPI and metric definitions are in `docs/analytics.md`.
+
+`analytics_daily` (a `(date, vendor_id, category)` rollup from Phase 2's
+schema) is refreshed by `refresh_analytics_daily_task`
+(`app/analytics/refresh.py`), deferred nightly at 02:00 via
+Procrastinate's native `@periodic(cron=...)` support and again after
+every payment batch settles; `kpis`, `volume-value-trend` and
+`spend-by-*` read it for speed, while everything else (reason codes,
+cycle-time, aging, heatmaps, ...) reads the raw tables directly since
+their grain doesn't fit a daily rollup. Dollar amounts for "savings
+prevented" are read back from the numeric evidence the match engine
+already writes into each exception's `details_json` (Phase 7), not
+re-derived or guessed. A column Phase 7/8 didn't need -
+`exceptions.opened_at` - was added here (with a migration) because
+trend and heatmap analysis have no other reliable per-exception
+timestamp to group by.
+
+`extraction-accuracy` serves the latest
+`docs/evaluation_extraction.json` / `docs/evaluation_matching.json`
+files rather than a DB table: Plan.md section 9 says this data should
+come "from evaluation runs stored in DB", but no such table exists in
+section 5's schema, and adding one for a single read-only endpoint
+wasn't worth the schema churn.
+
+Verified: 23 new backend tests - reconciliation tests proving
+`analytics_daily`'s refresh matches hand-computed totals from the raw
+tables (invoice counts, value, STP count, price-variance savings down to
+the cent, discount capture/miss by due-date comparison), correctness
+tests for the raw-table endpoints (aging buckets, cashflow-forecast
+weekly bucketing, exceptions-by-reason percentages, workflow funnel,
+savings breakdown), and API tests for the RBAC matrix, ETag 304
+behavior, CSV export and pagination - 243 backend tests green overall.
+`ruff`, `mypy` and `bandit` are clean. The acceptance target ("each
+endpoint answers in under 300ms on the 24-month dataset") has not been
+measured against a real 24-month dataset, since the FATURA-derived
+dataset has not finished downloading in this environment (see
+`dataset/README.md` and `docs/analytics.md`'s "Known limitations"
+section for the honest caveat).
+
+## Frontend foundation and public website (Phase 10)
+
+A full public marketing site and a real login flow, built on the
+existing React 19 + Vite + Tailwind v4 scaffold: a sticky nav with a
+Platform mega menu, Solutions and Company dropdowns and an accessible
+mobile drawer; a footer with five link columns; and the 13-section home
+page Plan.md section 10 specifies in order - hero, trust strip, four
+animated impact-metric counters, a four-step "how it works", an
+interactive 3-way match preview (toggle between price drift, short
+receipt and duplicate scenarios), an 8-card feature grid, role-based
+value tabs (AP team, controllers, procurement, internal audit), an
+analytics showcase, a 6-tile security and governance section, an
+integrations grid (status "Planned" where not built), three
+illustrative-labeled customer stories, an 8-question FAQ accordion and a
+final CTA banner. `/platform`, `/solutions`, `/security`, `/resources`
+(with 6 real written articles and a detail page), `/about`, `/contact`,
+`/privacy`, `/terms`, `/cookies`, a 404 and a 500 page round out the
+public routes.
+
+The `/login` page is wired to the real backend: email/password,
+show/hide password, an MFA step when the account has one enabled,
+inline validation and loading states, and a collapsible "Demo access"
+box (env-flagged via `VITE_DEMO_MODE`) listing the seeded demo accounts.
+A successful login lands on `/app`, a placeholder that calls `GET
+/auth/me` to prove cookie auth end to end - Phase 11 builds the real
+authenticated shell behind it. The Contact page's form validates
+client-side and posts to a new `POST /api/v1/contact` backend endpoint
+(public, rate-limited, stores to a `contact_submissions` table) rather
+than only pretending to submit.
+
+**No external images were used.** Plan.md section 10 asks for
+Unsplash/Pexels photography, unDraw/Storyset illustrations and a real
+Playwright-captured screenshot of the running app. This sandbox cannot
+reach external image services, and no seeded, screenshot-ready instance
+of the app was running to capture from, so every visual is instead a
+CSS/SVG construction - `lucide-react` icons, gradients, and a
+hand-built "dashboard mockup" component explicitly commented in the
+source as a documented stand-in. See `docs/image-credits.md` for the
+full explanation and what to swap in given network access.
+
+Verified: an axe-core scan (via Playwright) of every public route plus
+the 404 page shows zero serious or critical violations - the first scan
+surfaced four real WCAG AA color-contrast failures (the warning/success/
+danger semantic tokens, a teal used as text, and several light-gray
+captions), all fixed in `src/index.css` and the affected components, not
+just loosened in the test. 18 Playwright e2e tests (navigation, the mega
+menu, the FAQ accordion, login validation, the 404 page, and the
+accessibility scans) and 9 Vitest component tests (accordion toggle
+state, mobile drawer open/close, login validation/submission/MFA-step/
+demo-panel behavior) are green; `eslint`, `tsc` and `prettier` are
+clean; `vite build` succeeds. Lighthouse's >= 90 score targets have not
+been measured - this sandbox has no way to run a real Lighthouse pass -
+so that acceptance item is unverified rather than falsely claimed.
 
 ## Repository structure
 

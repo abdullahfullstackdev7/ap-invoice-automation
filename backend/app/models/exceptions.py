@@ -22,6 +22,7 @@ class ExceptionRecord(UUIDPKMixin, Base):
     status: Mapped[ExceptionStatus] = mapped_column(
         String(15), default=ExceptionStatus.open, index=True
     )
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     assigned_to: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id")
     )

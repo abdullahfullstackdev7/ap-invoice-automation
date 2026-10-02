@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import structlog
@@ -7,6 +7,7 @@ from procrastinate import RetryStrategy
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.analytics.refresh import refresh_analytics_daily
 from app.core.settings import get_settings
 from app.db.session import async_session_factory
 from app.extraction.cache import compute_ocr_text_hash, find_cached_extraction
@@ -288,6 +289,7 @@ async def resolve_invoice_entities(invoice_id: str) -> None:
                         "vendor_name": vendor_name,
                         "best_score": vendor_result.score,
                     },
+                    opened_at=datetime.now(UTC),
                 )
             )
 
@@ -486,6 +488,7 @@ async def match_invoice(invoice_id: str) -> None:
                     details_json=draft.details,
                     assigned_to=default_assignee_by_role[role.value],
                     sla_due_at=sla_due_at(draft.severity),
+                    opened_at=datetime.now(UTC),
                 )
             )
             existing_open_reason_codes.add(draft.reason_code)
@@ -702,6 +705,45 @@ async def settle_payment_batch(batch_id: str) -> None:
         logger.info(
             "settle_payment_batch_completed", batch_id=batch_id, payment_count=len(payments)
         )
+
+    # A settled batch can change stp/discount numbers for the invoices it
+    # covers; refresh a trailing window rather than tracking exactly which
+    # intake dates those invoices fall on.
+    today = date.today()
+    await refresh_analytics_daily_task.defer_async(
+        date_from=(today - timedelta(days=7)).isoformat(), date_to=today.isoformat()
+    )
+
+
+@procrastinate_app.task(
+    name="refresh_analytics_daily",
+    queue="analytics",
+    retry=RetryStrategy(max_attempts=3, exponential_wait=5),
+)
+async def refresh_analytics_daily_task(date_from: str, date_to: str) -> None:
+    """Recomputes analytics_daily for [date_from, date_to], Plan.md section
+    9: "nightly and after each batch". Deferred nightly by
+    refresh_analytics_daily_nightly and after every settle_payment_batch.
+    """
+    async with async_session_factory() as session:
+        groups = await refresh_analytics_daily(
+            session, date.fromisoformat(date_from), date.fromisoformat(date_to)
+        )
+        logger.info(
+            "refresh_analytics_daily_completed",
+            date_from=date_from,
+            date_to=date_to,
+            groups=groups,
+        )
+
+
+@procrastinate_app.periodic(cron="0 2 * * *")
+@procrastinate_app.task(name="refresh_analytics_daily_nightly", queue="analytics")
+async def refresh_analytics_daily_nightly(timestamp: int) -> None:
+    today = date.today()
+    await refresh_analytics_daily_task.defer_async(
+        date_from=(today - timedelta(days=1)).isoformat(), date_to=today.isoformat()
+    )
 
 
 async def _apply_cached_extraction(

@@ -8,23 +8,68 @@
 
 @theme {
   --color-brand-navy: #0b1f3a;
+  --color-brand-navy-light: #15305a;
   --color-brand-blue: #1f5eff;
   --color-brand-teal: #12b5a6;
+  --color-brand-teal-text: #115e59;
+
+  --color-success: #065f46;
+  --color-success-bg: #e8f8ee;
+  --color-warning: #92400e;
+  --color-warning-bg: #fdf3dc;
+  --color-danger: #b91c1c;
+  --color-danger-bg: #fbe9ea;
 
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-serif: 'Source Serif 4', Georgia, serif;
+
+  --breakpoint-xs: 23rem;
 }
 
 :root {
   color-scheme: light dark;
 }
 
+* {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 body {
   margin: 0;
   font-family: var(--font-sans);
+  color: #1b2435;
   -webkit-font-smoothing: antialiased;
 }
 
 #root {
   min-height: 100svh;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  padding: 0.75rem 1.25rem;
+  background: var(--color-brand-navy);
+  color: white;
+  border-radius: 0 0 8px 0;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand-blue);
+  outline-offset: 2px;
 }
