@@ -13,7 +13,9 @@ authorization), Phase 4 (document intake and OCR), Phase 5 (extraction,
 validation and the LLM router), Phase 6 (embeddings and entity
 resolution), Phase 7 (3-way match and rules engine), Phase 8
 (exceptions, approval routing and payment release), Phase 9 (analytics
-backend) and Phase 10 (frontend foundation and public website) complete.
+backend), Phase 10 (frontend foundation and public website) and
+Phase 12 (analytics dashboard) complete. Phase 11 is partly complete: the
+backend endpoints are in, the authenticated frontend pages are not.
 See `Plan.md` for the full phase-by-phase plan and `dataset/README.md`
 for dataset rebuild status.
 
@@ -454,6 +456,42 @@ demo-panel behavior) are green; `eslint`, `tsc` and `prettier` are
 clean; `vite build` succeeds. Lighthouse's >= 90 score targets have not
 been measured - this sandbox has no way to run a real Lighthouse pass -
 so that acceptance item is unverified rather than falsely claimed.
+
+## Analytics dashboard (Phase 12)
+
+`/analytics` (admin, finance manager and auditor) has five tabs - Executive,
+Operations, Vendors, Savings and Cash, Platform - driven by URL state, so a
+filtered view can be bookmarked or shared. Global controls: date presets
+(30d, 90d, YTD, 12m, 24m, custom), vendor and category filters, a
+previous-period comparison toggle on the KPI cards, CSV export on tables
+and print styles via the Print button. Every chart reads the Phase 9
+analytics endpoints, plus four new ones added for this phase:
+`savings-trend` (monthly buckets), `exception-heatmap-time` (weekday by hour,
+UTC), `sla-compliance` and `llm-usage-daily`. Charts share one ECharts theme
+built from the design tokens, and each shows loading, empty and error states.
+
+Verified: 265 backend tests green (including the new Phase 12 tests for SLA
+compliance, the heatmap buckets and monthly savings), backend ruff/mypy/bandit
+clean; frontend lint, typecheck and production build clean; 19 Playwright
+tests and 17 Vitest tests green. The auth-guard test confirms `/analytics`
+redirects logged-out visitors to login.
+
+Known gaps, stated plainly:
+
+- The Phase 11 authenticated pages (invoice list and detail, exception queue,
+  3-way resolution screen, approvals, payments, vendors, settings) are not
+  built in the frontend yet. Their backend endpoints are. Phase 12 sits in a
+  minimal authenticated shell with only the analytics link.
+- Vendor scatter and scorecard rows are not clickable to a vendor page, because
+  that page does not exist yet.
+- Charts have not been exercised against a live 24-month dataset (the FATURA
+  set is not downloaded here), so the "under 300 ms" and "totals match exports"
+  acceptance items are unverified.
+- The cumulative savings chart has no milestone annotations. The Platform tab
+  shows extraction accuracy as one snapshot, because no evaluation history is
+  stored.
+- The main analytics bundle is above 500 kB minified because ECharts is loaded
+  eagerly. Code splitting is a follow-up.
 
 ## Repository structure
 

@@ -100,11 +100,15 @@ async def test_list_exceptions_filters_by_status(
 
     open_resp = await client.get("/api/v1/exceptions", params={"exception_status": "open"})
     assert open_resp.status_code == 200
-    assert any(row["id"] == str(exception.id) for row in open_resp.json())
+    open_body = open_resp.json()
+    assert any(row["id"] == str(exception.id) for row in open_body["items"])
+    assert open_body["total"] == 1
 
     resolved_resp = await client.get("/api/v1/exceptions", params={"exception_status": "resolved"})
     assert resolved_resp.status_code == 200
-    assert resolved_resp.json() == []
+    resolved_body = resolved_resp.json()
+    assert resolved_body["items"] == []
+    assert resolved_body["total"] == 0
 
 
 async def test_unknown_action_is_rejected(client: AsyncClient, db_session: AsyncSession) -> None:

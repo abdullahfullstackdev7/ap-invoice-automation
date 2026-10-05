@@ -57,6 +57,7 @@ TRUNCATE_TABLES = [
     "exceptions",
     "approvals",
     "approval_policies",
+    "tolerance_policies",
     "payments",
     "payment_batches",
     "notifications",

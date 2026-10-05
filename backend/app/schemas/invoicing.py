@@ -56,6 +56,24 @@ class InvoiceRead(ORMModel):
     lines: list[InvoiceLineRead] = []
 
 
+class InvoiceListItem(ORMModel):
+    id: uuid.UUID
+    invoice_no: str | None
+    invoice_date: date | None
+    due_date: date | None
+    currency: str
+    total: Decimal | None
+    status: InvoiceStatus
+    vendor_id: uuid.UUID | None
+    vendor_name: str | None
+    extraction_confidence: Decimal | None
+
+
+class InvoiceListResponse(ORMModel):
+    items: list[InvoiceListItem]
+    total: int
+
+
 class InvoiceFieldUpdate(ORMModel):
     invoice_no: str | None = None
     invoice_date: date | None = None

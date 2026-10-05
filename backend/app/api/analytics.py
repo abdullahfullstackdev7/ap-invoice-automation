@@ -317,3 +317,66 @@ async def get_extraction_accuracy(
 ) -> object:
     payload = queries.extraction_accuracy()
     return with_etag(request, response, payload)
+
+
+@router.get("/savings-trend")
+async def get_savings_trend(
+    request: Request,
+    response: Response,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    vendor_id: uuid.UUID | None = None,
+    category: str | None = None,
+    granularity: Granularity = "month",
+    user: User = Depends(can_view),
+    session: AsyncSession = Depends(get_db_session),
+) -> object:
+    filters = _filters(date_from, date_to, vendor_id, category)
+    rows = await queries.savings_trend(session, filters, granularity)
+    return with_etag(request, response, rows)
+
+
+@router.get("/exception-heatmap-time")
+async def get_exception_heatmap_time(
+    request: Request,
+    response: Response,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    vendor_id: uuid.UUID | None = None,
+    category: str | None = None,
+    user: User = Depends(can_view),
+    session: AsyncSession = Depends(get_db_session),
+) -> object:
+    filters = _filters(date_from, date_to, vendor_id, category)
+    rows = await queries.exception_heatmap_time(session, filters)
+    return with_etag(request, response, rows)
+
+
+@router.get("/sla-compliance")
+async def get_sla_compliance(
+    request: Request,
+    response: Response,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    vendor_id: uuid.UUID | None = None,
+    category: str | None = None,
+    user: User = Depends(can_view),
+    session: AsyncSession = Depends(get_db_session),
+) -> object:
+    filters = _filters(date_from, date_to, vendor_id, category)
+    payload = await queries.sla_compliance(session, filters)
+    return with_etag(request, response, payload)
+
+
+@router.get("/llm-usage-daily")
+async def get_llm_usage_daily(
+    request: Request,
+    response: Response,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    user: User = Depends(can_view),
+    session: AsyncSession = Depends(get_db_session),
+) -> object:
+    filters = _filters(date_from, date_to, None, None)
+    rows = await queries.llm_usage_daily(session, filters)
+    return with_etag(request, response, rows)

@@ -31,3 +31,13 @@ class UserRead(ORMModel):
     approval_limit: Decimal | None
     is_active: bool
     last_login_at: datetime | None
+
+
+class AssignableUserRead(ORMModel):
+    """A slim, non-admin-gated user listing for exception reassignment and
+    similar pickers - no email, limit or login history, just enough to
+    label a dropdown option."""
+
+    id: uuid.UUID
+    full_name: str
+    role: UserRole

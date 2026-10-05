@@ -11,8 +11,8 @@ import json
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from datetime import date as date_
-from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Literal
@@ -665,3 +665,115 @@ def extraction_accuracy() -> dict[str, object]:
         "to refresh these."
     )
     return result
+
+
+async def savings_trend(
+    session: AsyncSession, filters: AnalyticsFilters, granularity: Granularity
+) -> list[dict[str, object]]:
+    rows = await _daily_rows(session, filters)
+    buckets: dict[date_, dict[str, Decimal]] = defaultdict(
+        lambda: {
+            "invoice_value": Decimal("0"),
+            "savings_prevented": Decimal("0"),
+            "discounts_captured": Decimal("0"),
+            "discounts_missed": Decimal("0"),
+        }
+    )
+    for row in rows:
+        data = buckets[_period_bucket(row.date, granularity)]
+        data["invoice_value"] += row.value
+        data["savings_prevented"] += row.savings_prevented
+        data["discounts_captured"] += row.discounts_captured
+        data["discounts_missed"] += row.discounts_missed
+    return [{"period": period, **data} for period, data in sorted(buckets.items())]
+
+
+async def exception_heatmap_time(
+    session: AsyncSession, filters: AnalyticsFilters
+) -> list[dict[str, object]]:
+    """Counts by weekday (0=Mon) and hour of day, UTC. Derived in Python
+    from opened_at rather than a DB-specific extract() so it stays portable."""
+    query = (
+        select(ExceptionRecord.opened_at)
+        .select_from(ExceptionRecord)
+        .join(Invoice, ExceptionRecord.invoice_id == Invoice.id)
+        .where(
+            func.date(ExceptionRecord.opened_at) >= filters.date_from,
+            func.date(ExceptionRecord.opened_at) <= filters.date_to,
+        )
+    )
+    if filters.vendor_id is not None:
+        query = query.where(Invoice.vendor_id == filters.vendor_id)
+    if filters.category is not None:
+        query = query.join(Vendor, Invoice.vendor_id == Vendor.id).where(
+            Vendor.category == filters.category
+        )
+    result = await session.execute(query)
+    counts: dict[tuple[int, int], int] = defaultdict(int)
+    for (opened_at,) in result.all():
+        counts[(opened_at.weekday(), opened_at.hour)] += 1
+    return [
+        {"weekday": weekday, "hour": hour, "count": count}
+        for (weekday, hour), count in sorted(counts.items())
+    ]
+
+
+async def sla_compliance(session: AsyncSession, filters: AnalyticsFilters) -> dict[str, object]:
+    query = (
+        select(ExceptionRecord.status, ExceptionRecord.sla_due_at, ExceptionRecord.resolved_at)
+        .select_from(ExceptionRecord)
+        .join(Invoice, ExceptionRecord.invoice_id == Invoice.id)
+        .where(
+            func.date(ExceptionRecord.opened_at) >= filters.date_from,
+            func.date(ExceptionRecord.opened_at) <= filters.date_to,
+        )
+    )
+    if filters.vendor_id is not None:
+        query = query.where(Invoice.vendor_id == filters.vendor_id)
+    if filters.category is not None:
+        query = query.join(Vendor, Invoice.vendor_id == Vendor.id).where(
+            Vendor.category == filters.category
+        )
+    rows = (await session.execute(query)).all()
+    now = datetime.now(UTC)
+
+    resolved = [
+        (due, resolved_at)
+        for status, due, resolved_at in rows
+        if status == ExceptionStatus.resolved and due and resolved_at
+    ]
+    met = sum(1 for due, resolved_at in resolved if resolved_at <= due)
+    overdue_open = sum(
+        1
+        for status, due, _ in rows
+        if status != ExceptionStatus.resolved and due is not None and due < now
+    )
+    return {
+        "resolved_count": len(resolved),
+        "sla_met_count": met,
+        "sla_compliance_pct": round(met / len(resolved) * 100, 2) if resolved else None,
+        "overdue_open_count": overdue_open,
+    }
+
+
+async def llm_usage_daily(
+    session: AsyncSession, filters: AnalyticsFilters
+) -> list[dict[str, object]]:
+    result = await session.execute(
+        select(LLMUsage.ts, LLMUsage.provider, LLMUsage.tokens_in, LLMUsage.tokens_out).where(
+            func.date(LLMUsage.ts) >= filters.date_from,
+            func.date(LLMUsage.ts) <= filters.date_to,
+        )
+    )
+    buckets: dict[tuple[date_, str], dict[str, int]] = defaultdict(
+        lambda: {"calls": 0, "tokens_in": 0, "tokens_out": 0}
+    )
+    for ts, provider, tokens_in, tokens_out in result.all():
+        data = buckets[(ts.date(), provider)]
+        data["calls"] += 1
+        data["tokens_in"] += tokens_in
+        data["tokens_out"] += tokens_out
+    return [
+        {"day": day, "provider": provider, **data}
+        for (day, provider), data in sorted(buckets.items())
+    ]

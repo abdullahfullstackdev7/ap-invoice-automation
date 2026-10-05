@@ -17,13 +17,27 @@ from app.core.security import (
 from app.db.session import get_db_session
 from app.models.enums import UserRole
 from app.models.identity import User
-from app.schemas.identity import UserCreate, UserRead, UserUpdate
+from app.schemas.identity import AssignableUserRead, UserCreate, UserRead, UserUpdate
 from app.services.audit import AuditService
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 admin_only = require_role(UserRole.admin)
 admin_or_auditor = require_role(UserRole.admin, UserRole.auditor)
+can_view_assignable = require_role(
+    UserRole.admin, UserRole.ap_clerk, UserRole.approver, UserRole.finance_manager
+)
+
+
+@router.get("/assignable", response_model=list[AssignableUserRead])
+async def list_assignable_users(
+    user: User = Depends(can_view_assignable),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[User]:
+    result = await session.execute(
+        select(User).where(User.is_active.is_(True)).order_by(User.full_name)
+    )
+    return list(result.scalars().all())
 
 
 @router.get("", response_model=list[UserRead])

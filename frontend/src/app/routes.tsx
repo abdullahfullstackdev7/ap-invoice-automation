@@ -2,7 +2,10 @@ import { Route, Routes } from 'react-router-dom'
 
 import { PublicLayout } from '@/components/layout/PublicLayout'
 import { AboutPage } from '@/pages/AboutPage'
+import { AppShell } from '@/components/app/AppShell'
+import { RequireAuth } from '@/components/app/RequireAuth'
 import { AppStubPage } from '@/pages/AppStubPage'
+import { AnalyticsPage } from '@/pages/analytics/AnalyticsPage'
 import { ContactPage } from '@/pages/ContactPage'
 import { CookieNoticePage } from '@/pages/CookieNoticePage'
 import { HomePage } from '@/pages/HomePage'
@@ -37,6 +40,11 @@ export function AppRoutes() {
       </Route>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/app" element={<AppStubPage />} />
+      <Route element={<RequireAuth />}>
+        <Route element={<AppShell />}>
+          <Route path="/analytics" element={<AnalyticsPage />} />
+        </Route>
+      </Route>
     </Routes>
   )
 }

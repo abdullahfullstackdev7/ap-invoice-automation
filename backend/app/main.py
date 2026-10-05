@@ -15,9 +15,13 @@ from app.api.contact import router as contact_router
 from app.api.exceptions import router as exceptions_router
 from app.api.health import router as health_router
 from app.api.invoices import router as invoices_router
+from app.api.llm_settings import router as llm_settings_router
 from app.api.notifications import router as notifications_router
 from app.api.payments import router as payments_router
+from app.api.policies import router as policies_router
+from app.api.procurement import router as procurement_router
 from app.api.users import router as users_router
+from app.api.vendors import router as vendors_router
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging, get_logger
 from app.core.middleware import (
@@ -79,6 +83,10 @@ def create_app() -> FastAPI:
     app.include_router(notifications_router, prefix="/api/v1")
     app.include_router(analytics_router, prefix="/api/v1")
     app.include_router(contact_router, prefix="/api/v1")
+    app.include_router(vendors_router, prefix="/api/v1")
+    app.include_router(procurement_router, prefix="/api/v1")
+    app.include_router(policies_router, prefix="/api/v1")
+    app.include_router(llm_settings_router, prefix="/api/v1")
 
     logger.info("app_created", app_env=settings.app_env)
     return app
