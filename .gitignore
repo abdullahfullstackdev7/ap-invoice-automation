@@ -43,3 +43,8 @@ Thumbs.db
 
 # This file must never leave the working tree
 git_verify.md
+
+# Test coverage output
+coverage.json
+.coverage
+htmlcov/

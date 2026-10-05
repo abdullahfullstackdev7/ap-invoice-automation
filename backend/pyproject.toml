@@ -78,5 +78,12 @@ testpaths = ["tests"]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[dependency-groups]
+dev = [
+    "locust>=2.46.7",
+    "pytest-cov>=7.1.0",
+    "schemathesis>=4.29.3",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["app"]

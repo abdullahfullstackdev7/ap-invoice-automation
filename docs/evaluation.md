@@ -110,3 +110,26 @@ Overall recall: 1.000 (target: >= 0.95)
 | QTY_NOT_RECEIVED | 1.000 | 1.000 | 1 | 0 | 0 |
 
 Smoke test only: dataset/processed/anomaly_labels.csv does not exist in this environment (see dataset/README.md), so this exercises run_match() directly against one synthetic case per labeled reason code (PO_CLOSED, PRICE_VARIANCE, QTY_NOT_RECEIVED) plus one clean case, rather than the real FATURA-derived evaluation set. Re-run against anomaly_labels.csv once it exists.
+
+## Quality gates (Phase 13)
+
+Measured in this environment on the current commit plus the Phase 13 changes.
+
+| Gate | Target | Result |
+|---|---|---|
+| Backend line coverage | >= 80% | 81.3% (4,987 statements, `pytest --cov=app`) |
+| Matching engine coverage | >= 95% | 95.5% (353 statements, `app/matching`, matching test selection) |
+| Schema contract fuzzing (schemathesis, all 68 operations) | no 5xx | 68 passed, 25 generated examples per operation |
+| Load: 50 concurrent users, read endpoints, 2 min | 0 failures | 4,165 requests, 0 failures, median 720 ms, p95 1.7 s |
+| Load: 10 concurrent uploads, 1 min | 0 failures | 283 uploads, 0 failures, median 87 ms |
+| Dependency audit, Python (pip-audit) | no known vulnerabilities | none found |
+| Dependency audit, frontend (npm audit, production, high) | no high findings | 0 vulnerabilities |
+| Static security (bandit, app/) | no findings | no findings |
+
+Caveats, stated plainly:
+
+- The load test ran against the Windows development machine with other projects also running, so latency is a floor-to-ceiling read, not a production benchmark. Login is throttled per IP by design (10 per minute), so the test logs in once before users spawn and shares that session.
+- Schema fuzzing sends unauthenticated, random requests. It proves the API never crashes, not that every authorized path is correct; the functional tests cover those.
+- Trivy and OWASP ZAP were not run: neither binary is installed here, and this sandbox cannot pull their images reliably. They remain outstanding for the security pass.
+- Resilience: a database outage now answers 503 with a problem body instead of 500, covered by a test. Graceful rules-only degradation when both LLM providers are exhausted is covered by the Phase 5 router tests. Worker crash recovery and idempotent re-processing rest on Procrastinate retries and the status guards in each task; a crash-injection test has not been written.
+- Observability: every request carries a request id and logs are structured (structlog). A Prometheus `/metrics` endpoint and Grafana were not built; both are marked optional in Plan.md section 13.

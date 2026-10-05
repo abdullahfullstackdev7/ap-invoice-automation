@@ -4,6 +4,7 @@ import structlog
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 logger = structlog.get_logger(__name__)
 
@@ -40,6 +41,18 @@ def register_error_handlers(app: FastAPI) -> None:
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             title="Validation error",
             detail=str(exc.errors()),
+            request_id=request_id,
+        )
+
+    @app.exception_handler(SQLAlchemyError)
+    async def database_exception_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
+        """A database outage is a dependency failure, not a bug in the request:
+        answer 503 so clients and load balancers can retry, rather than 500."""
+        request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
+        logger.error("database_unavailable", request_id=request_id, error=type(exc).__name__)
+        return _problem(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            title="Service temporarily unavailable",
             request_id=request_id,
         )
 

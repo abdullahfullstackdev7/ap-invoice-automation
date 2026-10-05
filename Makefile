@@ -1,4 +1,4 @@
-.PHONY: up down logs migrate load-data seed verify-audit ocr-bakeoff evaluate-extraction evaluate-matching test demo lint typecheck backend-install frontend-install dataset
+.PHONY: up down logs migrate load-data seed verify-audit ocr-bakeoff evaluate-extraction evaluate-matching test demo lint typecheck backend-install frontend-install dataset coverage contract-test loadtest security-audit
 
 up:
 	docker compose up -d --build
@@ -60,3 +60,18 @@ lint:
 typecheck:
 	cd backend && uv run mypy app tests scripts
 	cd frontend && npm run typecheck
+
+coverage:
+	cd backend && uv run pytest --cov=app --cov-report=term-missing --cov-fail-under=80
+	cd backend && uv run pytest tests/test_matching_rules.py tests/test_matching_engine.py tests/test_matching_property.py tests/test_matching_duplicate.py tests/test_matching_pipeline.py --cov=app.matching --cov-fail-under=95 -q
+
+contract-test:
+	cd backend && uv run pytest tests/test_api_contract.py -q
+
+loadtest:
+	cd backend && uv run locust -f loadtest/locustfile.py --host http://localhost:8000 --headless -u 50 -r 10 -t 2m --user-classes ReadUser
+
+security-audit:
+	cd backend && uv run bandit -r app -q
+	cd backend && uv run pip-audit -r <(uv export --no-hashes --format requirements-txt) --progress-spinner off
+	cd frontend && npm audit --omit=dev --audit-level=high
